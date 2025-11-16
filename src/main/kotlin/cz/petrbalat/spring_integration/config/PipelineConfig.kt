@@ -1,6 +1,9 @@
 package cz.petrbalat.spring_integration.config
 
 import cz.petrbalat.spring_integration.alg.Alg1Cmp
+import cz.petrbalat.spring_integration.dto.InputDto
+import cz.petrbalat.spring_integration.dto.OutputDto
+import cz.petrbalat.spring_integration.utils.result
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.integration.dsl.IntegrationFlow
@@ -18,10 +21,11 @@ class PipelineConfig {
             // KROK 1: Volání vašeho prvního algoritmu (Validace)
             // Metoda vrátí zprávu s headerem "isOk"
 
-            .handle(alg, "validateData") // KROK 2: Router – Podmíněné větvení ("jinak se přeskočí")
-
-            .route(Message::class.java, { m -> m.headers.get("isOk") }, { mapping ->
-                mapping // Pokud je header "isOk" = TRUE, pošli zprávu do kanálu pro uložení
+            .handle( { it: Message<InputDto> ->
+                alg.validateData(it)
+            })
+            .route(Message::class.java, { m -> m.result }, { mapping ->
+                mapping
                     .channelMapping(true, FINAL_SAVE_CHANNEL) // Pokud je FALSE, pošli ji do kanálu pro přeskočení
                     .channelMapping(false, SKIP_CHANNEL)
             })
@@ -34,7 +38,9 @@ class PipelineConfig {
     @Bean
     fun finalSaveFlow(alg: Alg1Cmp): IntegrationFlow {
         return IntegrationFlow.from(FINAL_SAVE_CHANNEL)
-            .handle(alg, "saveResult") // Volání druhého algoritmu (Ukládání)
+            .handle( { it: Message<OutputDto> ->
+                alg.saveResult(it)
+            })
             .get()
     }
 
